@@ -1,0 +1,16 @@
+{
+  "name": "chai_backend",
+  "version": "1.0.0",
+  "description": "making a full project ",
+  "keywords": [
+    "js",
+    "backend"
+  ],
+  "license": "ISC",
+  "author": "Vikas Pandey",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
