@@ -4,6 +4,7 @@ import { User } from '../models/user.model.js';
 import { uploadOnCloudinary} from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import jwt from 'jsonwebtoken';
+import { log } from 'console';
 
 const generateAcessAndRefereshToken = async(userId) =>{
    try {
@@ -310,7 +311,15 @@ const updateUserAvatar = asyncHandler(async (req, res)=>{
    {
       new: true,
    }).select("-password")
-
+   //delete the old image from cloudinary
+   const oldAvatar = req.user?.avatar
+   if(oldAvatar){
+      const publicId = oldAvatar.split("/").pop().split(".")[0] //this is the syntax to get the public id from url
+      await deleteFromCloudinary(publicId)
+   }
+   //return the response
+   //this is the syntax to remove the field from response
+   //this is the syntax to get the new user after update
    return res.status(200).json(
       new ApiResponse(200, user, "User updated successfully")
    )
@@ -341,6 +350,81 @@ const updateUserCoverImage = asyncHandler (async (req, res)=>{
       return res.status(200).json(
          new ApiResponse(200, user, "cover image updated successfully")
       )
+})
+
+const getUserChannelProfile = asyncHandler(async (req, res) =>{
+   const {username} = req.params
+
+   if(!username?.trim()){
+      throw new ApiError(400, "Username is required")
+   }
+
+   const channel = await User.aggregate([
+      {
+         $match: {
+            username: username.toLowerCase()
+         }
+      },
+      //here we are calculating the total number of subscribers using $lookup 
+      {
+         $lookup:{
+            from: "subscriptions",
+            localField: "_id",
+            froreignField: "channel",
+            as: "subscribers",
+         }
+      },
+      //here we are calculating the total number of i am subscribed
+      {
+         $lookup:{
+            from: "Subscriptions",
+            localField: "_id",
+            foreignField: "subscriber",
+            as: "subscribedTo",
+         }
+      },
+      {
+         $addFields:{
+            //this is the syntax to get the size of array in mongodb
+            //and add the new field in the user object
+            subscribersCount:{
+               $size: "$subscribers",
+            },
+            subscribedToCount:{
+               $size: "$subscribedTo",
+            },
+            //this is the syntax is check the user is subscribed or not
+               isSubscribed:{
+                  $cond: {
+                     if: { $in: [req.user?._id, "$subscribers.subscriber"]},
+                     then: true,
+                     else: false,
+                  }
+               }
+            }
+      },
+      //this is the syntax to remove the field from response
+      {
+        $project:{
+         fullname: 1,
+         username:1,
+         subscribersCount: 1,
+         subscribedToCount: 1,
+         isSubscribed: 1,
+         avatar: 1,
+         coverImage: 1,
+         email: 1,
+        }
+      }
+   ])
+   console.log(channel);
+
+   if(!channel?.length){
+      throw new ApiError(404, "channel does not exists")
+   }
+
+   return res.status(200).json(new ApiResponse(200, channel[0], "User channel fetched successfully"))
+   
 })
 
 export {registerUser, loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage} 
